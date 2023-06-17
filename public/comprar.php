@@ -1,7 +1,6 @@
 <?php
 session_start();
-
-use App\Tablas\Cupon; ?>
+?>
 <!DOCTYPE html>
 <html lang="es">
 
@@ -21,30 +20,40 @@ use App\Tablas\Cupon; ?>
     }
 
     $codigoCupon = obtener_post('codigoCupon');
-    $cupon = false;
+    $errores = 0;
     $carrito = unserialize(carrito());
-
 
     if (isset($codigoCupon) && $codigoCupon != '') {
         $pdo = conectar();
+        $ids_art_carrito = "(" . implode(', ', $carrito->getIds()) . ")";
+        $and = 'AND ac.articulo_id IN ' . $ids_art_carrito ;
+
         $sent = $pdo->prepare("SELECT c.*, ac.codigo AS codigo FROM cupones c
                                 JOIN articulos_cupones ac ON (c.id = ac.cupon_id)
-                                WHERE lower(unaccent(ac.codigo)) LIKE lower(unaccent(:codigoCupon))");
+                                WHERE lower(unaccent(ac.codigo)) LIKE lower(unaccent(:codigoCupon))
+                                $and ");
         $sent->execute([':codigoCupon' => $codigoCupon]);
+
         $cupon = $sent->fetch(PDO::FETCH_ASSOC);
         $codigoCupon = $cupon['codigo'];
 
-        if ($cupon) {
+
+        if (!empty($cupon)) {
             if ($cupon['caducidad'] < date("Y-m-d")) {
                 $_SESSION['error'] = 'Código de cupón caducado';
-                $cupon = false;
+                $errores += 1;
             }
         } else {
             $_SESSION['error'] = 'Código de cupón inválido.';
+            $errores += 1;
         }
     }
 
     if (obtener_post('_testigo') !== null) {
+
+        $codigoCupon = obtener_post('_codigoCupon');
+        $total = obtener_post('_total');
+
         $pdo = conectar();
         $ids_art_carrito = implode(', ', $carrito->getIds());
         $where = "WHERE id IN (" . $ids_art_carrito . ")";
@@ -64,11 +73,14 @@ use App\Tablas\Cupon; ?>
         // Crear factura
         $usuario = \App\Tablas\Usuario::logueado();
         $usuario_id = $usuario->id;
+
         $pdo->beginTransaction();
-        $sent = $pdo->prepare('INSERT INTO facturas (usuario_id)
-                               VALUES (:usuario_id)
+
+        $sent = $pdo->prepare('INSERT INTO facturas (usuario_id, total)
+                               VALUES (:usuario_id, :total)
                                RETURNING id');
-        $sent->execute([':usuario_id' => $usuario_id]);
+        $sent->execute([':usuario_id' => $usuario_id, ':total' => $total]);
+
         $factura_id = $sent->fetchColumn();
         $lineas = $carrito->getLineas();
         $values = [];
@@ -93,6 +105,17 @@ use App\Tablas\Cupon; ?>
                                     WHERE id = :id');
             $sent->execute([':id' => $id, ':cantidad' => $cantidad]);
         }
+
+        if (isset($codigoCupon)) {
+            $sent = $pdo -> prepare("SELECT id FROM cupones c 
+                                    JOIN articulos_cupones ac ON (ac.cupon_id = c.id)
+                                    WHERE ac.codigo = :codigo");
+            $sent->execute([':codigo' => $codigoCupon]);
+            $cuponId = $sent->fetchColumn();
+            $sentFactura = $pdo->prepare("UPDATE facturas SET cupon_id = :cuponId WHERE id = :id");
+            $sentFactura->execute([":id" => $factura_id, ":cuponId" => $cuponId]);
+        }
+
         $pdo->commit();
         $_SESSION['exito'] = 'La factura se ha creado correctamente.';
         unset($_SESSION['carrito']);
@@ -103,9 +126,10 @@ use App\Tablas\Cupon; ?>
 
     <div class="container mx-auto">
         <?php require '../src/_menu.php' ?>
+        <?php require '../src/_alerts.php' ?>
         <div class="overflow-y-auto py-4 px-3 bg-gray-50 rounded dark:bg-gray-800">
             <form action="" method="post">
-                <input type="text" name="codigoCupon" class="rounded-lg">
+                <input type="text" name="codigoCupon" class="rounded-lg" value="<?= $cupon ? $cupon['codigo'] : '' ?>">
                 <button type="submit" href="" class="mx-auto focus:outline-none text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-900"> Aplicar cupón </button>
             </form>
             <table class="mx-auto text-sm text-left text-gray-500 dark:text-gray-400">
@@ -126,7 +150,7 @@ use App\Tablas\Cupon; ?>
                         $cantidad = $linea->getCantidad();
                         $precio = $articulo->getPrecio();
                         $importe = $cantidad * $precio;
-                        if ($cupon) {
+                        if ($cupon && $errores == 0) {
                             $sent = $pdo->prepare("SELECT (a.precio - (a.precio * c.descuento)) AS precio FROM articulos a
                                                     JOIN articulos_cupones ac ON (a.id = ac.articulo_id)
                                                     JOIN cupones c ON (ac.cupon_id = c.id)
@@ -154,7 +178,6 @@ use App\Tablas\Cupon; ?>
                             <td class="py-4 px-6 text-center">
                                 <p class="<?= $importeCupon ? 'text-red-600' : '' ?>" style="<?= $importeCupon ? 'text-decoration: line-through' : '' ?>"><?= dinero($importe) ?></p>
                                 <p class="<?= $importeCupon ? 'text-green-700 font-bold' : '' ?>"><?= $importeCupon ? dinero($importeCupon) : '' ?></p>
-
                             </td>
                         </tr>
                     <?php endforeach ?>
@@ -167,6 +190,8 @@ use App\Tablas\Cupon; ?>
             </table>
             <form action="" method="POST" class="mx-auto flex mt-4">
                 <input type="hidden" name="_testigo" value="1">
+                <input type="hidden" name="_codigoCupon" value="<?=$codigoCupon?>">
+                <input type="hidden" name="_total" value="<?=$total?>">
                 <button type="submit" href="" class="mx-auto focus:outline-none text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-900">Realizar pedido</button>
             </form>
         </div>

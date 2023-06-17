@@ -2,6 +2,7 @@
 session_start();
 
 use App\Tablas\Factura;
+use App\Tablas\Cupon;
 
 require '../vendor/autoload.php';
 
@@ -27,15 +28,25 @@ if ($factura->getUsuarioId() != $usuario->id) {
     return volver();
 }
 
+$cupon = $factura->getCuponNombre();
+$cuponId = $factura->getCuponId();
+
 $filas_tabla = '';
 $total = 0;
 
 foreach ($factura->getLineas($pdo) as $linea) {
     $articulo = $linea->getArticulo();
+    $id = $articulo->getId();
     $codigo = $articulo->getCodigo();
     $descripcion = $articulo->getDescripcion();
     $cantidad = $linea->getCantidad();
     $precio = $articulo->getPrecio();
+    $usaCupon = $articulo->tieneCupon($id, $cuponId);
+
+    if($cuponId && $usaCupon) {
+        $cupon = CUPON::obtenerCupon($cuponId);
+        $precio = $precio - ($precio * $cupon->getDescuento());
+    }
     $importe = $cantidad * $precio;
     $total += $importe;
     $precio = dinero($precio);
@@ -53,6 +64,13 @@ foreach ($factura->getLineas($pdo) as $linea) {
 }
 
 $total = dinero($total);
+
+
+
+if ($cuponId) {
+    $total = dinero($factura->getTotalGuardado());
+}
+
 
 $res = <<<EOT
 <p>Factura número: {$factura->id}</p>

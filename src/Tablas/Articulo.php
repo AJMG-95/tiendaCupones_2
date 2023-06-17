@@ -33,6 +33,7 @@ class Articulo extends Modelo
         return $this->codigo;
     }
 
+
     public function getDescripcion()
     {
         return $this->descripcion;
@@ -41,6 +42,19 @@ class Articulo extends Modelo
     public function getPrecio()
     {
         return $this->precio;
+    }
+
+    public static function tieneCupon($articuloId, $cuponId, ?PDO $pdo = null)
+    {
+        $pdo = $pdo ?? conectar();
+        $sent = $pdo->prepare("SELECT COUNT(*) FROM articulos_cupones WHERE articulo_id = :articulo_id AND cupon_id = :cupon_id");
+        $sent->execute([':articulo_id' => $articuloId, ':cupon_id' => $cuponId]);
+        $res = $sent->fetchColumn();
+        if ($res) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public function getPrecioCupon(?PDO $pdo = null)

@@ -48,6 +48,19 @@ class Cupon extends Modelo
         return $this->cupon;
     }
 
+    public static function obtenerCupon($cuponId, ?PDO $pdo = null)
+    {
+        $pdo = $pd ?? conectar();
+
+        $sent = $pdo->prepare("SELECT * FROM cupones WHERE id = :id");
+        $sent->execute([':id' => $cuponId]);
+        $cupon = $sent->fetch(PDO::FETCH_ASSOC);
+        if ($cupon) {
+            return new Cupon($cupon);
+        }
+        return '';
+    }
+
     public function getCodigo()
     {
         $pdo = conectar();

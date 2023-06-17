@@ -24,6 +24,7 @@ CREATE TABLE facturas (
     created_at timestamp  NOT NULL DEFAULT localtimestamp(0),
     usuario_id bigint NOT NULL REFERENCES usuarios (id),
     cupon_id bigint REFERENCES cupones (id),
+    total numeric(7, 2)
 );
 
 DROP TABLE IF EXISTS articulos_facturas CASCADE;
@@ -76,5 +77,5 @@ VALUES ( 0.20, '2023-12-31', 'CUPON-20%-DESCUENTO'),
        INSERT INTO articulos_cupones (articulo_id, cupon_id, codigo)
 VALUES (1, 1, 'CUPON20-1'),
        (2, 1, 'CUPON20-2'),
-       (2, 2, 'CUPON50'),
-       (4, 3, 'CUPON70');
+       (2, 2, 'CUPON50-2'),
+       (4, 3, 'CUPON70-4');
