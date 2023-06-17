@@ -33,7 +33,7 @@ $cuponId = $factura->getCuponId();
 
 $filas_tabla = '';
 $total = 0;
-
+$string = '';
 foreach ($factura->getLineas($pdo) as $linea) {
     $articulo = $linea->getArticulo();
     $id = $articulo->getId();
@@ -41,12 +41,19 @@ foreach ($factura->getLineas($pdo) as $linea) {
     $descripcion = $articulo->getDescripcion();
     $cantidad = $linea->getCantidad();
     $precio = $articulo->getPrecio();
+    $precioInicial = '';
+    $importeInicial = '';
     $usaCupon = $articulo->tieneCupon($id, $cuponId);
+    print_r($precio . "-----");
 
-    if($cuponId && $usaCupon) {
+    if ($cuponId && $usaCupon) {
+        $precioInicial =  $precio . ' -> ';
+        $importeInicial = $cantidad * $precio . ' -> ';
         $cupon = CUPON::obtenerCupon($cuponId);
         $precio = $precio - ($precio * $cupon->getDescuento());
+        $string = "Usó el cupón: " . $cupon->getCupon() . " en el artículo " . $articulo->getDescripcion();
     }
+
     $importe = $cantidad * $precio;
     $total += $importe;
     $precio = dinero($precio);
@@ -57,15 +64,14 @@ foreach ($factura->getLineas($pdo) as $linea) {
             <td>$codigo</td>
             <td>$descripcion</td>
             <td>$cantidad</td>
-            <td>$precio</td>
-            <td>$importe</td>
+            <td>$precioInicial $precio</td>
+            <td>$importeInicial $importe</td>
         </tr>
     EOF;
 }
 
 $total = dinero($total);
-
-
+$totalInicial = $total;
 
 if ($cuponId) {
     $total = dinero($factura->getTotalGuardado());
@@ -89,6 +95,7 @@ $res = <<<EOT
 </table>
 
 <p>Total: $total</p>
+<p>$string </p>
 EOT;
 
 // Asi lo hizo ricardo y no fuciona porque el vendor no puede modificar los archivos temporales
